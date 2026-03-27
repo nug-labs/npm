@@ -1,4 +1,3 @@
-import bundledDataset from "./dataset.json";
 import type { BrowserStorageAdapter, NugLabsClientOptions, Strain, StrainDataset } from "./types";
 
 /**
@@ -27,6 +26,31 @@ function parseDataset(raw: string): StrainDataset {
   return parsed;
 }
 
+function getBundledDatasetUrl(): URL {
+  // `src/dataset.json` is shipped as a package asset (not bundled into JS).
+  // `dist/src/store.js` lives two levels deeper than `src/dataset.json`.
+  return new URL("../../src/dataset.json", import.meta.url);
+}
+
+async function loadBundledDataset(): Promise<StrainDataset> {
+  const url = getBundledDatasetUrl();
+
+  if (typeof (globalThis as { fetch?: unknown }).fetch === "function") {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load bundled dataset (${response.status} ${response.statusText})`);
+    }
+
+    const text = await response.text();
+    return parseDataset(text);
+  }
+
+  const { readFile } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const raw = await readFile(fileURLToPath(url), "utf8");
+  return parseDataset(raw);
+}
+
 function getGlobalBrowserStorage(): BrowserStorageAdapter | null {
   const candidate = globalThis.localStorage as BrowserStorageAdapter | undefined;
   if (!candidate || typeof candidate.getItem !== "function" || typeof candidate.setItem !== "function") {
@@ -51,6 +75,7 @@ export class LocalStore {
   private readonly useBrowserStorage: boolean;
   private readonly browserStorageKey: string;
   private readonly browserStorage: BrowserStorageAdapter | null;
+  private bundledDataset: StrainDataset | null = null;
   private memoryDataset: StrainDataset | null;
   private writeEnabled = true;
   private storageFile: string | null = null;
@@ -66,7 +91,7 @@ export class LocalStore {
     this.useBrowserStorage = options.useBrowserStorage ?? false;
     this.browserStorageKey = options.browserStorageKey ?? "nuglabs.dataset";
     this.browserStorage = options.browserStorage ?? getGlobalBrowserStorage();
-    this.memoryDataset = this.cacheInMemory ? [...bundledDataset] : null;
+    this.memoryDataset = null;
   }
 
   /**
@@ -79,7 +104,8 @@ export class LocalStore {
       return;
     }
 
-    this.setMemoryDataset(bundledDataset);
+    const bundled = await this.getBundledDataset();
+    this.setMemoryDataset(bundled);
   }
 
   /**
@@ -91,7 +117,12 @@ export class LocalStore {
     }
 
     const persistedDataset = await this.readPersistedOverride();
-    return [...(persistedDataset ?? bundledDataset)];
+    if (persistedDataset) {
+      return [...persistedDataset];
+    }
+
+    const bundled = await this.getBundledDataset();
+    return [...bundled];
   }
 
   /**
@@ -222,5 +253,10 @@ export class LocalStore {
     if (this.cacheInMemory) {
       this.memoryDataset = [...dataset];
     }
+  }
+
+  private async getBundledDataset(): Promise<StrainDataset> {
+    this.bundledDataset ??= await loadBundledDataset();
+    return this.bundledDataset;
   }
 }

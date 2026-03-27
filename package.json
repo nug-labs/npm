@@ -1,6 +1,6 @@
 {
   "name": "nuglabs",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Local-first SDK for the NugLabs strain API.",
   "license": "MIT",
   "type": "module",
