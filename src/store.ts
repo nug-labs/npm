@@ -26,29 +26,74 @@ function parseDataset(raw: string): StrainDataset {
   return parsed;
 }
 
-function getBundledDatasetUrl(): URL {
-  // `src/dataset.json` is shipped as a package asset (not bundled into JS).
-  // `dist/src/store.js` lives two levels deeper than `src/dataset.json`.
-  return new URL("../../src/dataset.json", import.meta.url);
+function getBundledDatasetUrls(): URL[] {
+  // The SDK is commonly executed from either:
+  // - source: `src/store.ts` (tests / ts-node / tsx)
+  // - build output: `dist/src/store.{js,cjs}` (published package)
+  //
+  // `src/dataset.json` is shipped as a package asset (not bundled into JS),
+  // so we resolve a couple of relative candidates and try them in order.
+  return [
+    // When running from source (`src/store.ts`), dataset sits alongside this file.
+    new URL("./dataset.json", import.meta.url),
+    // When running from build output (`dist/src/store.js`), dataset is back in `src/`.
+    new URL("../../src/dataset.json", import.meta.url),
+  ];
 }
 
-async function loadBundledDataset(): Promise<StrainDataset> {
-  const url = getBundledDatasetUrl();
+const isBrowser = typeof window !== "undefined";
 
-  if (typeof (globalThis as { fetch?: unknown }).fetch === "function") {
-    const response = await fetch(url);
+async function loadDataset(pathOrUrl: string | URL): Promise<StrainDataset> {
+  if (isBrowser) {
+    const response = await fetch(pathOrUrl);
     if (!response.ok) {
       throw new Error(`Failed to load bundled dataset (${response.status} ${response.statusText})`);
     }
 
-    const text = await response.text();
-    return parseDataset(text);
+    const parsed = (await response.json()) as unknown;
+    if (!Array.isArray(parsed) || !parsed.every(isStrainRecord)) {
+      throw new Error("Invalid strain dataset");
+    }
+
+    return parsed;
   }
 
   const { readFile } = await import("node:fs/promises");
   const { fileURLToPath } = await import("node:url");
-  const raw = await readFile(fileURLToPath(url), "utf8");
+
+  const filePath =
+    typeof pathOrUrl === "string"
+      ? pathOrUrl
+      : pathOrUrl.protocol === "file:"
+        ? fileURLToPath(pathOrUrl)
+        : pathOrUrl.toString();
+
+  // If this is a non-file URL in Node, fall back to fetch.
+  if (typeof pathOrUrl !== "string" && pathOrUrl.protocol !== "file:") {
+    const response = await fetch(pathOrUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to load bundled dataset (${response.status} ${response.statusText})`);
+    }
+    return parseDataset(await response.text());
+  }
+
+  const raw = await readFile(filePath, "utf8");
   return parseDataset(raw);
+}
+
+async function loadBundledDataset(): Promise<StrainDataset> {
+  const candidates = getBundledDatasetUrls();
+  let lastError: unknown;
+
+  for (const candidate of candidates) {
+    try {
+      return await loadDataset(candidate);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Failed to load bundled dataset");
 }
 
 function getGlobalBrowserStorage(): BrowserStorageAdapter | null {
