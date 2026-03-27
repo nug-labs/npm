@@ -5,6 +5,19 @@ import type { NugLabsClientOptions, NugLabsSyncResult, Strain, StrainDataset } f
 
 /**
  * Local-first client for the NugLabs strain dataset.
+ *
+ * Constructor:
+ * `new NugLabsClient(options?)`
+ *
+ * Common options:
+ * - `apiBaseUrl?`: defaults to `https://strains.nuglabs.co`
+ * - `cacheInMemory?`: defaults to `true`
+ * - `storageDir?`: optional Node-only persistence directory
+ * - `useBrowserStorage?`: optional, defaults to `false`, overrides `storageDir`
+ * - `browserStorageKey?`: optional, defaults to `nuglabs.dataset`
+ * - `browserStorage?`: optional custom browser storage adapter
+ * - `syncIntervalMs?`: optional, defaults to `43200000` (12 hours)
+ * - `fetchImpl?`: optional custom `fetch` implementation
  */
 export class NugLabsClient {
   private readonly store: LocalStore;
@@ -15,6 +28,14 @@ export class NugLabsClient {
    * Creates a new SDK client instance.
    *
    * @param options Runtime configuration for storage, caching, and sync.
+   * @param options.apiBaseUrl Base URL used for background sync and `forceResync()`. Defaults to `https://strains.nuglabs.co`.
+   * @param options.cacheInMemory Enables the in-memory cache for reads. Defaults to `true`.
+   * @param options.storageDir Node-only directory used for persisted dataset overrides.
+   * @param options.useBrowserStorage Enables browser persistence and overrides `storageDir` when `true`.
+   * @param options.browserStorageKey Storage key used for browser persistence. Defaults to `nuglabs.dataset`.
+   * @param options.browserStorage Optional custom browser storage adapter.
+   * @param options.syncIntervalMs Background sync interval in milliseconds. Defaults to 12 hours.
+   * @param options.fetchImpl Optional custom `fetch` implementation used for sync requests.
    */
   constructor(options: NugLabsClientOptions = {}) {
     this.store = new LocalStore(options);
@@ -40,7 +61,7 @@ export class NugLabsClient {
    * Returns a single strain by exact case-insensitive match on `name` or `akas`.
    *
    * @param name Strain name or alias to resolve.
-   * @returns The matching strain or `null`.
+   * @returns A `Strain` object containing fields like `name`, optional `id`, optional `akas`, and any additional dataset fields, or `null` when nothing matches.
    */
   async getStrain(name: string): Promise<Strain | null> {
     const dataset = await this.readDataset();
@@ -50,9 +71,9 @@ export class NugLabsClient {
   /**
    * Returns the full locally available strain dataset.
    *
-   * @returns All currently available local strains.
+   * @returns `Strain[]`. Each object typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
    */
-  async getAllStrains(): Promise<StrainDataset> {
+  async getAllStrains(): Promise<Strain[]> {
     return this.readDataset();
   }
 
@@ -60,9 +81,9 @@ export class NugLabsClient {
    * Performs a case-insensitive partial search against `name` and `akas`.
    *
    * @param query Partial query to search for.
-   * @returns All matching strains.
+   * @returns `Strain[]`. Each result typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
    */
-  async searchStrains(query: string): Promise<StrainDataset> {
+  async searchStrains(query: string): Promise<Strain[]> {
     const dataset = await this.readDataset();
     return findMatchingStrains(dataset, query);
   }
@@ -109,6 +130,14 @@ function getDefaultClient(): NugLabsClient {
  * Initializes the module-level singleton client.
  *
  * @param options Optional runtime configuration for the singleton client.
+ * @param options.apiBaseUrl Base URL used for background sync and `forceResync()`. Defaults to `https://strains.nuglabs.co`.
+ * @param options.cacheInMemory Enables the in-memory cache for reads. Defaults to `true`.
+ * @param options.storageDir Node-only directory used for persisted dataset overrides.
+ * @param options.useBrowserStorage Enables browser persistence and overrides `storageDir` when `true`.
+ * @param options.browserStorageKey Storage key used for browser persistence. Defaults to `nuglabs.dataset`.
+ * @param options.browserStorage Optional custom browser storage adapter.
+ * @param options.syncIntervalMs Background sync interval in milliseconds. Defaults to 12 hours.
+ * @param options.fetchImpl Optional custom `fetch` implementation used for sync requests.
  * @returns The initialized singleton client.
  */
 export async function initialize(options?: NugLabsClientOptions): Promise<NugLabsClient> {
@@ -126,7 +155,7 @@ export async function initialize(options?: NugLabsClientOptions): Promise<NugLab
  * Exact case-insensitive lookup on the singleton client.
  *
  * @param name Strain name or alias to resolve.
- * @returns The matching strain or `null`.
+ * @returns A `Strain` object containing fields like `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional dataset fields, or `null` when nothing matches.
  */
 export async function getStrain(name: string): Promise<Strain | null> {
   return getDefaultClient().getStrain(name);
@@ -134,10 +163,10 @@ export async function getStrain(name: string): Promise<Strain | null> {
 
 /**
  * Returns all locally available strains from the singleton client.
-   *
-   * @returns All currently available local strains.
+ *
+ * @returns `Strain[]`. Each object typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
  */
-export async function getAllStrains(): Promise<StrainDataset> {
+export async function getAllStrains(): Promise<Strain[]> {
   return getDefaultClient().getAllStrains();
 }
 
@@ -145,16 +174,16 @@ export async function getAllStrains(): Promise<StrainDataset> {
  * Partial case-insensitive search on the singleton client.
  *
  * @param query Partial query to search for.
- * @returns All matching strains.
+ * @returns `Strain[]`. Each result typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
  */
-export async function searchStrains(query: string): Promise<StrainDataset> {
+export async function searchStrains(query: string): Promise<Strain[]> {
   return getDefaultClient().searchStrains(query);
 }
 
 /**
  * Manually refreshes the singleton client's local dataset from the remote API.
-   *
-   * @returns Metadata about the applied sync.
+ *
+ * @returns Metadata about the applied sync.
  */
 export async function forceResync(): Promise<NugLabsSyncResult> {
   return getDefaultClient().forceResync();
@@ -162,8 +191,8 @@ export async function forceResync(): Promise<NugLabsSyncResult> {
 
 /**
  * Stops background sync and resets the singleton client.
-   *
-   * @returns Nothing.
+ *
+ * @returns Nothing.
  */
 export function shutdown(): void {
   defaultClient?.shutdown();

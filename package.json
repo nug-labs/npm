@@ -35,7 +35,9 @@
     "strains",
     "sdk",
     "api",
-    "local-first"
+    "local-first",
+    "cannabis",
+    "weed"
   ],
   "devDependencies": {
     "@types/node": "^22.13.14",

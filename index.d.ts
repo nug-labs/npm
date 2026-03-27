@@ -1,5 +1,14 @@
 /**
  * A single strain record from the NugLabs dataset.
+ *
+ * Common fields include:
+ * - `id`
+ * - `name`
+ * - `akas`
+ * - `type`
+ * - `thc`
+ * - `description`
+ * - any additional fields present in the bundled dataset
  */
 export interface Strain {
   /** Stable numeric identifier when present in the dataset. */
@@ -75,12 +84,33 @@ export interface NugLabsSyncResult {
 
 /**
  * Local-first client for the NugLabs strain dataset.
+ *
+ * Constructor:
+ * `new NugLabsClient(options?)`
+ *
+ * Common options:
+ * - `apiBaseUrl?`: defaults to `https://strains.nuglabs.co`
+ * - `cacheInMemory?`: defaults to `true`
+ * - `storageDir?`: optional Node-only persistence directory
+ * - `useBrowserStorage?`: optional, defaults to `false`, overrides `storageDir`
+ * - `browserStorageKey?`: optional, defaults to `nuglabs.dataset`
+ * - `browserStorage?`: optional custom browser storage adapter
+ * - `syncIntervalMs?`: optional, defaults to `43200000` (12 hours)
+ * - `fetchImpl?`: optional custom `fetch` implementation
  */
 export class NugLabsClient {
   /**
    * Creates a new SDK client instance.
    *
    * @param options Runtime configuration for storage, caching, and sync.
+   * @param options.apiBaseUrl Base URL used for background sync and `forceResync()`. Defaults to `https://strains.nuglabs.co`.
+   * @param options.cacheInMemory Enables the in-memory cache for reads. Defaults to `true`.
+   * @param options.storageDir Node-only directory used for persisted dataset overrides.
+   * @param options.useBrowserStorage Enables browser persistence and overrides `storageDir` when `true`.
+   * @param options.browserStorageKey Storage key used for browser persistence. Defaults to `nuglabs.dataset`.
+   * @param options.browserStorage Optional custom browser storage adapter.
+   * @param options.syncIntervalMs Background sync interval in milliseconds. Defaults to 12 hours.
+   * @param options.fetchImpl Optional custom `fetch` implementation used for sync requests.
    */
   constructor(options?: NugLabsClientOptions);
 
@@ -95,24 +125,24 @@ export class NugLabsClient {
    * Returns a single strain by exact case-insensitive match on `name` or `akas`.
    *
    * @param name Strain name or alias to resolve.
-   * @returns The matching strain or `null`.
+   * @returns A `Strain` object containing fields like `name`, optional `id`, optional `akas`, and any additional dataset fields, or `null` when nothing matches.
    */
   getStrain(name: string): Promise<Strain | null>;
 
   /**
    * Returns the full locally available strain dataset.
    *
-   * @returns All currently available local strains.
+   * @returns `Strain[]`. Each object typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
    */
-  getAllStrains(): Promise<StrainDataset>;
+  getAllStrains(): Promise<Strain[]>;
 
   /**
    * Performs a case-insensitive partial search against `name` and `akas`.
    *
    * @param query Partial query to search for.
-   * @returns All matching strains.
+   * @returns `Strain[]`. Each result typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
    */
-  searchStrains(query: string): Promise<StrainDataset>;
+  searchStrains(query: string): Promise<Strain[]>;
 
   /**
    * Fetches the latest remote dataset and replaces the local copy.
@@ -131,9 +161,17 @@ export class NugLabsClient {
 
 /**
  * Initializes the module-level singleton client.
-   *
-   * @param options Optional runtime configuration for the singleton client.
-   * @returns The initialized singleton client.
+ *
+ * @param options Optional runtime configuration for the singleton client.
+ * @param options.apiBaseUrl Base URL used for background sync and `forceResync()`. Defaults to `https://strains.nuglabs.co`.
+ * @param options.cacheInMemory Enables the in-memory cache for reads. Defaults to `true`.
+ * @param options.storageDir Node-only directory used for persisted dataset overrides.
+ * @param options.useBrowserStorage Enables browser persistence and overrides `storageDir` when `true`.
+ * @param options.browserStorageKey Storage key used for browser persistence. Defaults to `nuglabs.dataset`.
+ * @param options.browserStorage Optional custom browser storage adapter.
+ * @param options.syncIntervalMs Background sync interval in milliseconds. Defaults to 12 hours.
+ * @param options.fetchImpl Optional custom `fetch` implementation used for sync requests.
+ * @returns The initialized singleton client.
  */
 export function initialize(options?: NugLabsClientOptions): Promise<NugLabsClient>;
 
@@ -141,24 +179,24 @@ export function initialize(options?: NugLabsClientOptions): Promise<NugLabsClien
  * Exact case-insensitive lookup on the singleton client.
  *
  * @param name Strain name or alias to resolve.
- * @returns The matching strain or `null`.
+ * @returns A `Strain` object containing fields like `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional dataset fields, or `null` when nothing matches.
  */
 export function getStrain(name: string): Promise<Strain | null>;
 
 /**
  * Returns all locally available strains from the singleton client.
  *
- * @returns All currently available local strains.
+ * @returns `Strain[]`. Each object typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
  */
-export function getAllStrains(): Promise<StrainDataset>;
+export function getAllStrains(): Promise<Strain[]>;
 
 /**
  * Partial case-insensitive search on the singleton client.
  *
  * @param query Partial query to search for.
- * @returns All matching strains.
+ * @returns `Strain[]`. Each result typically includes `name`, optional `id`, optional `akas`, optional `type`, optional `thc`, optional `description`, plus any additional NugLabs strain fields.
  */
-export function searchStrains(query: string): Promise<StrainDataset>;
+export function searchStrains(query: string): Promise<Strain[]>;
 
 /**
  * Manually refreshes the singleton client's local dataset from the remote API.

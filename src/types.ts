@@ -1,5 +1,14 @@
 /**
  * A single strain record from the NugLabs dataset.
+ *
+ * Common fields include:
+ * - `id`
+ * - `name`
+ * - `akas`
+ * - `type`
+ * - `thc`
+ * - `description`
+ * - any additional fields present in the bundled dataset
  */
 export interface Strain {
   /** Stable numeric identifier when present in the dataset. */
@@ -13,7 +22,9 @@ export interface Strain {
 }
 
 /**
- * The full locally loaded strain dataset.
+ * Convenience alias for `Strain[]`.
+ *
+ * This is the full locally loaded strain dataset.
  */
 export type StrainDataset = Strain[];
 

@@ -10,6 +10,10 @@ function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function normalizeNoSpaces(value: string): string {
+  return normalize(value).replace(/\s+/g, "");
+}
+
 /**
  * Checks whether any alias on a strain matches the provided predicate.
  *
@@ -30,16 +34,21 @@ function matchesAlias(strain: Strain, predicate: (alias: string) => boolean): bo
  */
 export function findExactStrain(dataset: StrainDataset, name: string): Strain | null {
   const query = normalize(name);
+  const queryNoSpaces = normalizeNoSpaces(name);
   if (!query) {
     return null;
   }
 
   const match = dataset.find((strain) => {
-    if (normalize(strain.name) === query) {
+    const strainName = normalize(strain.name);
+    if (strainName === query || normalizeNoSpaces(strainName) === queryNoSpaces) {
       return true;
     }
 
-    return matchesAlias(strain, (alias) => normalize(alias) === query);
+    return matchesAlias(strain, (alias) => {
+      const normalizedAlias = normalize(alias);
+      return normalizedAlias === query || normalizeNoSpaces(normalizedAlias) === queryNoSpaces;
+    });
   });
 
   return match ?? null;
@@ -54,15 +63,26 @@ export function findExactStrain(dataset: StrainDataset, name: string): Strain | 
  */
 export function findMatchingStrains(dataset: StrainDataset, query: string): Strain[] {
   const normalized = normalize(query);
+  const normalizedNoSpaces = normalizeNoSpaces(query);
   if (!normalized) {
     return [...dataset];
   }
 
   return dataset.filter((strain) => {
-    if (normalize(strain.name).includes(normalized)) {
+    const strainName = normalize(strain.name);
+    if (
+      strainName.includes(normalized) ||
+      normalizeNoSpaces(strainName).includes(normalizedNoSpaces)
+    ) {
       return true;
     }
 
-    return matchesAlias(strain, (alias) => normalize(alias).includes(normalized));
+    return matchesAlias(strain, (alias) => {
+      const normalizedAlias = normalize(alias);
+      return (
+        normalizedAlias.includes(normalized) ||
+        normalizeNoSpaces(normalizedAlias).includes(normalizedNoSpaces)
+      );
+    });
   });
 }

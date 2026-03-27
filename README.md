@@ -42,6 +42,46 @@ await client.forceResync();
 client.shutdown();
 ```
 
+## Constructor Options
+
+```ts
+const client = new NugLabsClient({
+  apiBaseUrl: "https://strains.nuglabs.co",
+  cacheInMemory: true,
+  storageDir: "/tmp/nuglabs",
+  useBrowserStorage: false,
+  browserStorageKey: "nuglabs.dataset",
+  browserStorage: window.localStorage,
+  syncIntervalMs: 12 * 60 * 60 * 1000,
+  fetchImpl: fetch
+});
+```
+
+- `apiBaseUrl`: base URL used for sync requests
+- `cacheInMemory`: enables the in-memory read cache
+- `storageDir`: Node-only persistence directory
+- `useBrowserStorage`: uses browser storage and ignores `storageDir`
+- `browserStorageKey`: key used in browser storage
+- `browserStorage`: custom storage adapter with `getItem()` / `setItem()`
+- `syncIntervalMs`: background sync interval in milliseconds
+- `fetchImpl`: custom fetch implementation for sync
+
+## Return Shapes
+
+- `getStrain(name)`: returns a single `Strain | null`
+- `getAllStrains()`: returns `Strain[]`
+- `searchStrains(query)`: returns `Strain[]`
+
+Typical `Strain` fields include:
+
+- `id`
+- `name`
+- `akas`
+- `type`
+- `thc`
+- `description`
+- plus any additional dataset fields bundled with NugLabs
+
 ```ts
 import { NugLabsClient } from "nuglabs";
 
