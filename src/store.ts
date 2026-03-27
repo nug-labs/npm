@@ -36,7 +36,9 @@ function getBundledDatasetUrls(): URL[] {
   return [
     // When running from source (`src/store.ts`), dataset sits alongside this file.
     new URL("./dataset.json", import.meta.url),
-    // When running from build output (`dist/src/store.js`), dataset is back in `src/`.
+    // When bundled, `import.meta.url` typically points at `dist/index.*`.
+    new URL("../src/dataset.json", import.meta.url),
+    // When running from build output (`dist/src/store.*`), dataset is back in `src/`.
     new URL("../../src/dataset.json", import.meta.url),
   ];
 }
