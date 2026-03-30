@@ -1,20 +1,21 @@
 /**
  * Local-first client for the NugLabs strain dataset.
  *
- * Constructor:
- * `new NugLabsClient(options?)`
+ * @packageDocumentation
  *
- * Common options:
- * - `apiBaseUrl?`: defaults to `https://strains.nuglabs.co`
- * - `cacheInMemory?`: defaults to `true`
- * - `storageDir?`: optional Node-only persistence directory
- * - `useBrowserStorage?`: optional, defaults to `false`, overrides `storageDir`
- * - `browserStorageKey?`: optional, defaults to `nuglabs.dataset`
- * - `browserStorage?`: optional custom browser storage adapter
- * - `syncIntervalMs?`: optional, defaults to `43200000` (12 hours)
- * - `fetchImpl?`: optional custom `fetch` implementation
+ * @example
+ * ```ts
+ * import { NugLabsClient } from "nuglabs";
+ *
+ * const client = await NugLabsClient.init({ storageDir: "./.nuglabs" });
+ * const strain = await client.getStrain("gelato 33"); // can match "Gelato #33"
+ * client.shutdown();
+ * ```
+ *
+ * Configuration is fully described on {@link NugLabsClientOptions}.
  */
-export { NugLabsClient } from "./src/client";
+export { NugLabsClient, normalize } from "./src/client";
+export { NugLabsWasmEngine } from "./src/wasm-engine";
 
 /**
  * Initializes the module-level singleton client.
@@ -55,12 +56,13 @@ export { getAllStrains } from "./src/client";
 export { searchStrains } from "./src/client";
 
 /**
- * Manually refreshes the singleton client's local dataset from the remote API.
+ * Manually refreshes dataset + rules from the remote API.
  *
  * Returns:
  * - `Promise<NugLabsSyncResult>`
  */
 export { forceResync } from "./src/client";
+export { forceResyncDataset, forceResyncRules } from "./src/client";
 
 /**
  * Stops background sync and resets the singleton client.
@@ -101,4 +103,7 @@ export type { NugLabsClientOptions } from "./src/types";
 /**
  * Result returned after a successful remote sync.
  */
-export type { NugLabsSyncResult } from "./src/types";
+export type { NugLabsArtifactSyncResult, NugLabsSyncAction, NugLabsSyncArtifact, NugLabsSyncResult } from "./src/types";
+
+/** Canonical API origin — matches `nuglabs_core::NUGLABS_API_ORIGIN`. */
+export { NUGLABS_API_ORIGIN, NUGLABS_RULES_URL, NUGLABS_STRAINS_DATASET_URL } from "./src/constants";

@@ -15,10 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
+
+      - name: Clone sdk-core
+        run: git clone https://github.com/nug-labs/sdk-core.git ../core
 
       - name: Install dependencies
         run: npm install

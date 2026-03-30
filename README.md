@@ -5,11 +5,14 @@ Local-first SDK for `https://strains.nuglabs.co`.
 ## Design
 
 - Ships with a bundled `src/dataset.json`
+- Ships with a bundled `src/rules.json`
 - Loads bundled data on startup
 - Uses persisted local data if a newer synced copy exists
 - Performs all reads and searches against local data only
 - Auto-syncs from the API every 12 hours
-- Supports manual `forceResync()`
+- Supports manual `forceResync()` (`dataset` + `rules`)
+- Supports targeted `forceResyncDataset()` and `forceResyncRules()`
+- Uses ETag conditional requests (`If-None-Match`) for sync efficiency
 - Supports browser persistence with `useBrowserStorage: true`
 - Falls back to memory-only mode if disk writes are not permitted
 
@@ -22,12 +25,22 @@ npm install nuglabs
 ## Usage
 
 ```ts
-import { getStrain, getAllStrains, searchStrains, forceResync } from "nuglabs";
+import {
+  getStrain,
+  getAllStrains,
+  searchStrains,
+  forceResync,
+  forceResyncDataset,
+  forceResyncRules
+} from "nuglabs";
 
 const blueDream = await getStrain("Blue Dream");
 const allStrains = await getAllStrains();
 const matches = await searchStrains("dream");
-await forceResync();
+const sync = await forceResync();
+await forceResyncDataset();
+await forceResyncRules();
+console.log(sync.dataset.changed, sync.rules.changed);
 ```
 
 ```ts
@@ -38,7 +51,9 @@ const client = new NugLabsClient();
 const strain = await client.getStrain("Blue Dream");
 const strains = await client.getAllStrains();
 const matches = await client.searchStrains("dream");
-await client.forceResync();
+await client.forceResync(); // dataset + rules
+await client.forceResyncDataset();
+await client.forceResyncRules();
 client.shutdown();
 ```
 
@@ -46,7 +61,6 @@ client.shutdown();
 
 ```ts
 const client = new NugLabsClient({
-  apiBaseUrl: "https://strains.nuglabs.co",
   cacheInMemory: true,
   storageDir: "/tmp/nuglabs",
   useBrowserStorage: false,
@@ -57,7 +71,9 @@ const client = new NugLabsClient({
 });
 ```
 
-- `apiBaseUrl`: base URL used for sync requests
+Sync always uses the canonical dataset URL (see `NUGLABS_STRAINS_DATASET_URL` in the package exports; matches Rust `nuglabs_core::strains_dataset_url()`).
+Rules sync uses `NUGLABS_RULES_URL` (matches Rust `nuglabs_core::rules_url()`).
+
 - `cacheInMemory`: enables the in-memory read cache
 - `storageDir`: Node-only persistence directory
 - `useBrowserStorage`: uses browser storage and ignores `storageDir`
@@ -71,6 +87,9 @@ const client = new NugLabsClient({
 - `getStrain(name)`: returns a single `Strain | null`
 - `getAllStrains()`: returns `Strain[]`
 - `searchStrains(query)`: returns `Strain[]`
+- `forceResync()`: returns `{ dataset: NugLabsArtifactSyncResult, rules: NugLabsArtifactSyncResult }`
+- `forceResyncDataset()`: returns `NugLabsArtifactSyncResult`
+- `forceResyncRules()`: returns `NugLabsArtifactSyncResult`
 
 Typical `Strain` fields include:
 
@@ -97,4 +116,5 @@ const client = new NugLabsClient({
 - `searchStrains(query)` does case-insensitive partial matching against `name` and `akas[]`
 - `getAllStrains()` returns the full locally loaded dataset
 - Reads never call the API directly
-- Sync failures keep the last good local dataset
+- Sync failures keep the last good local artifacts
+- Rules endpoint `404` is treated as `not-modified` for backward-compatible deployments

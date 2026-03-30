@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { NugLabsClient } from "../src/client";
+import { NUGLABS_RULES_URL, NUGLABS_STRAINS_DATASET_URL } from "../src/constants";
 
 const clients: NugLabsClient[] = [];
 
@@ -46,7 +47,7 @@ test("getStrain matches aliases exactly", async () => {
     );
 
   const { client } = await createClient(fetchImpl);
-  await client.forceResync();
+  await client.forceResyncDataset();
 
   const strain = await client.getStrain("azure dream");
   assert.ok(strain);
@@ -61,9 +62,38 @@ test("searchStrains performs case-insensitive partial search", async () => {
   assert.ok(results.some((strain) => strain.name === "Blue Dream"));
 });
 
+test("getStrain resolves Gelato #33 from compact, spaced, and hash-prefixed queries", async () => {
+  const { client } = await createClient();
+  const canonical = "Gelato #33";
+
+  const fromCompact = await client.getStrain("Gelato33");
+  const fromSpaced = await client.getStrain("gelato 33");
+  const fromHash = await client.getStrain("gelato#33");
+  const fromCanonical = await client.getStrain("Gelato #33");
+
+  assert.ok(fromCompact, "Gelato33 should match canonical name Gelato #33");
+  assert.ok(fromSpaced, "gelato 33 should normalize to the same lookup key");
+  assert.ok(fromHash, "gelato#33 strips # then collapses to gelato33");
+  assert.equal(fromCompact?.name, canonical);
+  assert.equal(fromSpaced?.name, canonical);
+  assert.equal(fromHash?.name, canonical);
+  assert.equal(fromCanonical?.name, canonical);
+});
+
 test("forceResync updates persisted dataset", async () => {
-  const fetchImpl: typeof fetch = async () =>
-    new Response(
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    if (url === NUGLABS_RULES_URL) {
+      return new Response(
+        JSON.stringify({
+          version: 1,
+          trim: true,
+          lowercase: true,
+          steps: [{ id: "collapse_whitespace", pattern: "\\s+", replace: "" }]
+        })
+      );
+    }
+    return new Response(
       JSON.stringify([
         {
           name: "Test Strain",
@@ -71,11 +101,13 @@ test("forceResync updates persisted dataset", async () => {
         }
       ])
     );
+  };
 
   const { client, storageDir } = await createClient(fetchImpl);
   const result = await client.forceResync();
 
-  assert.equal(result.count, 1);
+  assert.equal(result.dataset.count, 1);
+  assert.equal(result.rules.artifact, "rules");
 
   const persisted = JSON.parse(await readFile(path.join(storageDir, "dataset.json"), "utf8")) as Array<{ name: string }>;
   assert.equal(persisted[0]?.name, "Test Strain");
@@ -114,11 +146,64 @@ test("useBrowserStorage persists through the configured browser adapter", async 
 
   clients.push(client);
   await client.initialize();
-  await client.forceResync();
+  await client.forceResyncDataset();
 
   assert.equal(JSON.parse(browserState.get("nuglabs.test.browser") ?? "[]")[0]?.name, "Browser Strain");
 
   const byAlias = await client.getStrain("front end");
   assert.ok(byAlias);
   assert.equal(byAlias?.name, "Browser Strain");
+});
+
+test("forceResync uses ETag conditional requests and skips unchanged payloads", async () => {
+  let datasetEtag = "dataset-v1";
+  let rulesEtag = "rules-v1";
+  const dataset = [{ name: "Blue Dream", akas: ["BD"] }];
+  const rules = {
+    version: 1,
+    trim: true,
+    lowercase: true,
+    steps: [{ id: "collapse_whitespace", pattern: "\\s+", replace: "" }]
+  };
+  let seenDatasetIfNoneMatch: string | null = null;
+  let seenRulesIfNoneMatch: string | null = null;
+
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = String(input);
+    const ifNoneMatch = new Headers(init?.headers).get("If-None-Match");
+    if (url === NUGLABS_STRAINS_DATASET_URL) {
+      seenDatasetIfNoneMatch = ifNoneMatch;
+      if (ifNoneMatch === datasetEtag) {
+        return new Response(null, { status: 304 });
+      }
+      return new Response(JSON.stringify(dataset), {
+        status: 200,
+        headers: { etag: datasetEtag, "content-type": "application/json" }
+      });
+    }
+    if (url === NUGLABS_RULES_URL) {
+      seenRulesIfNoneMatch = ifNoneMatch;
+      if (ifNoneMatch === rulesEtag) {
+        return new Response(null, { status: 304 });
+      }
+      return new Response(JSON.stringify(rules), {
+        status: 200,
+        headers: { etag: rulesEtag, "content-type": "application/json" }
+      });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const { client } = await createClient(fetchImpl);
+  const first = await client.forceResync();
+  assert.equal(first.dataset.changed, true);
+  assert.equal(first.rules.changed, true);
+  assert.equal(first.dataset.etag, "dataset-v1");
+  assert.equal(first.rules.etag, "rules-v1");
+
+  const second = await client.forceResync();
+  assert.equal(second.dataset.changed, false);
+  assert.equal(second.rules.changed, false);
+  assert.equal(seenDatasetIfNoneMatch, "dataset-v1");
+  assert.equal(seenRulesIfNoneMatch, "rules-v1");
 });

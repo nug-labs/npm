@@ -6,18 +6,19 @@
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
-  "types": "./index.d.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
   },
   "files": [
     "dist",
-    "index.d.ts",
+    "wasm",
     "src/dataset.json",
+    "src/rules.json",
     "README.md"
   ],
   "sideEffects": false,
@@ -25,7 +26,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup",
+    "build:wasm": "cd ../core && cargo build --release --target wasm32-unknown-unknown && mkdir -p ../npm/wasm && cp target/wasm32-unknown-unknown/release/nuglabs_core.wasm ../npm/wasm/",
+    "build": "npm run build:wasm && tsup && mkdir -p dist/wasm && cp wasm/nuglabs_core.wasm dist/wasm/",
     "check": "tsc --noEmit",
     "test": "node --import tsx --test tests/**/*.test.ts",
     "prepublishOnly": "npm run build"

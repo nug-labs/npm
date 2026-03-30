@@ -1,35 +1,33 @@
 /**
  * A single strain record from the NugLabs dataset.
  *
- * Common fields include:
- * - `id`
- * - `name`
- * - `akas`
- * - `type`
- * - `thc`
- * - `description`
- * - any additional fields present in the bundled dataset
+ * The WASM engine preserves whatever fields appear in JSON; these are the fields
+ * callers most often rely on.
  */
 export interface Strain {
   /** Stable numeric identifier when present in the dataset. */
   id?: number;
-  /** Primary display name for the strain. */
+  /**
+   * Primary display name as stored in the dataset (e.g. `"Gelato #33"`).
+   * Exact lookup compares **normalized** keys derived from `name` and `akas`.
+   */
   name: string;
-  /** Alternate names that should also resolve in exact and partial search. */
+  /**
+   * Alternate strings that resolve to this strain on exact lookup, after the same
+   * normalization rules as `name` (hash stripping, lowercasing, whitespace collapse).
+   */
   akas?: string[];
   /** Additional dataset fields returned by NugLabs. */
   [key: string]: unknown;
 }
 
 /**
- * Convenience alias for `Strain[]`.
- *
- * This is the full locally loaded strain dataset.
+ * The full locally loaded strain dataset (`Strain[]`).
  */
 export type StrainDataset = Strain[];
 
 /**
- * Minimal browser storage contract used by the SDK.
+ * Minimal browser storage contract used by the SDK for `localStorage`-style persistence.
  */
 export interface BrowserStorageAdapter {
   /**
@@ -50,35 +48,90 @@ export interface BrowserStorageAdapter {
 }
 
 /**
- * Configuration for a `NugLabsClient` instance.
+ * Options for constructing {@link NugLabsClient} and the module `initialize()` helper.
+ *
+ * @remarks
+ * **Typical usage**
+ * - **Node**: pass `storageDir` so sync can persist `dataset.json` under that folder.
+ * - **Browser**: set `useBrowserStorage: true` (and optionally `browserStorage` for tests).
+ *
+ * **Normalization** rules are bundled in this wrapper package (`src/rules.json`) and loaded into
+ * the Rust WASM engine at startup. Remote rules updates are applied during sync.
  */
 export interface NugLabsClientOptions {
-  /** Base URL used only for background sync and `forceResync()`. */
-  apiBaseUrl?: string;
-  /** Enables or disables the in-memory cache used for reads. Defaults to `true`. */
+  /**
+   * When `true` (default), the in-memory store keeps a copy of the dataset for fast reads.
+   * Set to `false` if you only want filesystem/browser reads on each access.
+   */
   cacheInMemory?: boolean;
-  /** Node-only storage directory for persisted dataset overrides. Ignored when `useBrowserStorage` is `true`. */
+  /**
+   * **Node:** directory where `dataset.json` is written after a successful sync.
+   * Ignored when `useBrowserStorage` is `true`.
+   */
   storageDir?: string;
-  /** Enables browser storage persistence and overrides any `storageDir` value. */
+  /**
+   * **Browser:** persist the dataset in `localStorage` (or {@link browserStorage}) instead of Node disk.
+   * When `true`, `storageDir` is ignored.
+   */
   useBrowserStorage?: boolean;
-  /** Browser storage key used when `useBrowserStorage` is enabled. */
+  /**
+   * Key used for browser storage when `useBrowserStorage` is enabled. Default: `"nuglabs.dataset"`.
+   */
   browserStorageKey?: string;
-  /** Optional custom browser storage adapter. Useful for tests or non-DOM environments. */
+  /**
+   * Inject a custom storage backend (e.g. in-memory map in tests, or a wrapped `localStorage`).
+   */
   browserStorage?: BrowserStorageAdapter;
-  /** Background sync interval in milliseconds. Defaults to 12 hours. */
+  /**
+   * Interval in milliseconds between automatic background sync attempts. Default: 12 hours.
+   */
   syncIntervalMs?: number;
-  /** Custom fetch implementation used for sync requests. */
+  /**
+   * `fetch` used for sync (Node 18+ / browsers). Inject a mock in tests to avoid the network.
+   */
   fetchImpl?: typeof fetch;
+  /**
+   * When `true` (default), loads `wasm/nuglabs_core.wasm` for `getStrain`, `searchStrains`, and `normalize`.
+   * Set to `false` only if the `.wasm` file is unavailable and you fall back to the legacy TS search helpers.
+   */
+  useWasm?: boolean;
 }
 
 /**
- * Result returned after a successful remote sync.
+ * Distinct sync artifact identifiers used by tick actions and manual resync methods.
+ */
+export type NugLabsSyncArtifact = "dataset" | "rules";
+
+/**
+ * Host action emitted by the WASM scheduler (`tickActions`).
+ */
+export interface NugLabsSyncAction {
+  artifact: NugLabsSyncArtifact;
+  /** Earliest recommended interval between sync checks for this artifact. */
+  minIntervalMs: number;
+}
+
+/**
+ * Result of synchronizing one artifact.
+ */
+export interface NugLabsArtifactSyncResult {
+  artifact: NugLabsSyncArtifact;
+  /** `true` when remote bytes were downloaded and applied; `false` for HTTP 304. */
+  changed: boolean;
+  /** Number of dataset entries when artifact is `dataset`. */
+  count?: number;
+  /** Response ETag when provided by the server. */
+  etag?: string | null;
+  /** Sync source (`remote` on 200, `not-modified` on 304). */
+  source: "remote" | "not-modified";
+  /** ISO-8601 timestamp when this artifact sync completed. */
+  updatedAt: string;
+}
+
+/**
+ * Combined sync result returned by `forceResync()`.
  */
 export interface NugLabsSyncResult {
-  /** ISO timestamp for when the dataset was refreshed. */
-  updatedAt: string;
-  /** Number of strain records loaded from the remote API. */
-  count: number;
-  /** Source of the new dataset. */
-  source: "remote";
+  dataset: NugLabsArtifactSyncResult;
+  rules: NugLabsArtifactSyncResult;
 }
