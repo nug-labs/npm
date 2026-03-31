@@ -37,7 +37,7 @@
     "build:wasm": "cd ../core && cargo build --release --target wasm32-unknown-unknown && mkdir -p ../npm/wasm && cp target/wasm32-unknown-unknown/release/nuglabs_core.wasm ../npm/wasm/",
     "build": "npm run build:wasm && tsup && mkdir -p dist/wasm && cp wasm/nuglabs_core.wasm dist/wasm/",
     "check": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
