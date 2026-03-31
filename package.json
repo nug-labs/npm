@@ -1,6 +1,6 @@
 {
   "name": "nuglabs",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Local-first SDK for the NugLabs strain API.",
   "license": "MIT",
   "repository": {
@@ -36,6 +36,7 @@
   "scripts": {
     "build:wasm": "cd ../core && cargo build --release --target wasm32-unknown-unknown && mkdir -p ../npm/wasm && cp target/wasm32-unknown-unknown/release/nuglabs_core.wasm ../npm/wasm/",
     "build": "npm run build:wasm && tsup && mkdir -p dist/wasm && cp wasm/nuglabs_core.wasm dist/wasm/",
+    "pretest": "npm run build:wasm",
     "check": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "prepublishOnly": "npm run build"
