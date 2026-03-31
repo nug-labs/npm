@@ -2,7 +2,7 @@
 
 Local-first SDK for `https://strains.nuglabs.co`.
 
-Current npm package version: `1.3.2`.
+Current npm package version: `1.3.3`.
 
 ## Design
 
